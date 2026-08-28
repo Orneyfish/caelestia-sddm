@@ -84,6 +84,38 @@ tile already hides itself gracefully on desktops with no battery; a laptop whose
 battery isn't named `BAT0`, or that lacks `thermal_zone0`, will just show `0%`/no
 badge for that one reading rather than crashing.
 
+## Troubleshooting
+
+**The whole card is invisible; only a blurred wallpaper shows.** This means
+`QML_XHR_ALLOW_FILE_READ` isn't reaching the greeter, so `MColours.qml` can
+never read `colors.json`, `colours.ready` never becomes `true`, and every
+widget (gated on that flag) stays at `opacity: 0`. Confirm the fix is actually
+installed and working:
+
+```sh
+cat /etc/sddm.conf.d/greeter-env.conf   # should show GreeterEnvironment=QML_XHR_ALLOW_FILE_READ=1
+journalctl -u sddm -n 100 | grep "QML_XHR_ALLOW_FILE_READ"   # should print nothing after a fresh login
+```
+
+If that warning *does* show up repeatedly in the journal, the setting isn't
+reaching the greeter. The critical, easy-to-get-wrong detail: **a systemd
+`sddm.service.d/override.conf` with `Environment=` does not work for this.**
+`sddm-helper` spawns the greeter inside a fresh PAM session for the `sddm`
+system user, and PAM session creation does not inherit the parent unit's
+`Environment=`. The setting has to go through SDDM's own
+`GreeterEnvironment=` key in `sddm.conf.d` instead (what `install.sh` sets
+up) — that's the only mechanism guaranteed to reach the actual greeter
+process, not just the `sddm` daemon.
+
+This is also why testing with `sddm-greeter-qt6 --test-mode` in your own
+shell can pass while the real login screen fails: test-mode runs as a plain
+child of whatever shell invokes it, inheriting *that* shell's environment
+directly — it never goes through the `sddm-helper`/PAM spawn path the real
+login screen uses, so it can't catch this class of bug. Prefer restarting the
+real `sddm.service` (`sudo systemctl restart sddm`, safe — it only respawns
+the greeter on the unused VT, not your active session) over test-mode when
+verifying anything environment-related.
+
 ## Development / testing
 
 Since `theme.conf` may hold your calendar secret, it's locked to `root:sddm`

@@ -62,12 +62,10 @@ cat > /etc/sddm-wallpaper-sync.conf << EOF
 SOURCE_USER=$TARGET_USER
 EOF
 
-mkdir -p /etc/systemd/system/sddm.service.d
-cp "$SCRIPT_DIR/systemd/sddm-override.conf" /etc/systemd/system/sddm.service.d/override.conf
-
-echo "==> Selecting the pixie theme in sddm.conf.d"
+echo "==> Selecting the pixie theme and setting the greeter environment"
 mkdir -p /etc/sddm.conf.d
 printf '[Theme]\nCurrent=pixie\n' > /etc/sddm.conf.d/theme.conf
+cp "$SCRIPT_DIR/sddm.conf.d/greeter-env.conf" /etc/sddm.conf.d/greeter-env.conf
 
 echo "==> Locking down theme.conf (may contain your calendar secret)"
 if getent group sddm >/dev/null; then
