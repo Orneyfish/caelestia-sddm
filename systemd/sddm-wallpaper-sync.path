@@ -1,0 +1,11 @@
+[Unit]
+Description=Watch caelestia wallpaper and color scheme for changes
+
+[Path]
+PathChanged=__HOME__/.local/state/caelestia/wallpaper/current
+PathChanged=__HOME__/.local/state/quickshell/user/generated/colors.json
+PathChanged=__HOME__/.face
+Unit=sddm-wallpaper-sync.service
+
+[Install]
+WantedBy=multi-user.target

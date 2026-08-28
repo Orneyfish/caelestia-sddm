@@ -1,0 +1,109 @@
+# caelestia-sddm
+
+An SDDM login theme that mirrors the [caelestia-shell](https://github.com/caelestia-dots/shell)
+Quickshell lock screen: live Material You colors (via matugen), the same M3 shapes
+(avatar, stat tiles, password button), matching fonts, and the same three-column
+layout (weather/system-info/calendar on the left, clock/avatar/password in the
+center, stats/news on the right).
+
+Based on [pixie-sddm](https://github.com/xCaptaiN09/pixie-sddm) by xCaptaiN09 (MIT).
+
+## Requirements
+
+- SDDM with the Qt6 QML greeter
+- [caelestia-shell](https://github.com/caelestia-dots/shell) running as your Quickshell
+  config, with matugen generating `~/.local/state/quickshell/user/generated/colors.json`
+- The `M3Shapes` Qt6 QML plugin that ships with caelestia-shell (used for the avatar,
+  stat tiles, and password button shapes)
+- "CaskaydiaCove NF" installed system-wide (used for monospace text)
+- Wayland + `hyprctl`-style compositor (tested on Hyprland)
+
+## Install
+
+```sh
+sudo ./install.sh
+```
+
+This copies the theme to `/usr/share/sddm/themes/pixie`, sets it as the active
+SDDM theme, installs a systemd path unit that keeps the login screen's wallpaper,
+Material You colors, and profile picture in sync with your desktop, and sets the
+`QML_XHR_ALLOW_FILE_READ=1` environment SDDM's greeter needs to read local files
+(system stats, the synced color JSON).
+
+It will **not** switch your display manager for you — if something other than
+`sddm` is currently enabled, the script tells you and prints the two commands to
+flip it, so that stays a deliberate, explicit step.
+
+Re-running `install.sh` is safe: it never overwrites an existing `theme.conf`, so
+your `calendarIcalUrl`/`newsFeedUrl` settings (see below) survive upgrades.
+
+## Configuring the Calendar and News cards
+
+Both are optional and degrade gracefully if left unconfigured. Edit
+`/usr/share/sddm/themes/pixie/theme.conf`:
+
+- `calendarIcalUrl` — your Google Calendar's private iCal address (Calendar
+  Settings → your calendar → *Integrate calendar* → "Secret address in iCal
+  format"). Leave blank and the card still shows a full month grid with today
+  highlighted — it just has no events list under it. **This is a bearer-token-like
+  secret**; the installer locks `theme.conf` to `root:sddm 640` when an `sddm`
+  system group exists, but treat that URL like a password.
+- `newsFeedUrl` — a Google News RSS URL. Leave blank for general Top Stories in
+  your locale, or point it at a topic search feed, e.g.:
+  `https://news.google.com/rss/search?q=Technology+OR+Sports&hl=en-US&gl=US&ceid=US:en`
+
+Neither requires OAuth or an API key — both are plain authenticated/public URLs
+fetched the same way the weather widget fetches open-meteo.
+
+## What's live vs. static
+
+Everything with a "why would this go stale" concern is backed by a real data
+source and a refresh timer, not hardcoded:
+
+| Widget | Source | Refresh |
+|---|---|---|
+| Clock | system time | every 1s |
+| Weather | IP geolocation → open-meteo, no API key | every 30 min |
+| System info card (WM/user/uptime/battery) | `sddm` session models, `/proc/uptime`, `/sys/class/power_supply` | uptime/battery every 30s |
+| CPU / memory / battery tiles | `/proc/stat`, `/proc/meminfo`, `/sys/class/power_supply` | CPU every 2s, rest every 5s |
+| CPU temp badge | `/sys/class/thermal/thermal_zone0/temp` | every 5s |
+| Calendar month grid | system date | rebuilt hourly (so "today" stays correct across midnight) |
+| Calendar events | your iCal secret URL, if set | every 15 min |
+| News headlines | Google News RSS | every 30 min |
+| Wallpaper / M3 colors / avatar | your desktop's actual files, via the systemd path-watcher | on change (event-driven, not polled) |
+| Avatar photo | `~/.face`, synced automatically | falls back to a bundled placeholder if you haven't set one up yet |
+
+All of the above run as QML timers *inside the greeter process itself* — when you
+log in, SDDM kills the greeter and every timer/pending request dies with it.
+Nothing runs in the background once you're logged in, other than the wallpaper
+sync path-watcher (a tiny, always-idle systemd unit unrelated to any of this).
+
+Machine-specific assumptions worth knowing about: the battery/CPU-temp tiles read
+`/sys/class/power_supply/BAT0` and `.../thermal_zone0` specifically. The battery
+tile already hides itself gracefully on desktops with no battery; a laptop whose
+battery isn't named `BAT0`, or that lacks `thermal_zone0`, will just show `0%`/no
+badge for that one reading rather than crashing.
+
+## Development / testing
+
+Since `theme.conf` may hold your calendar secret, it's locked to `root:sddm`
+mode `640`. To test-mode-preview the greeter as yourself without `sudo -u sddm`
+each time, add yourself to the `sddm` group once:
+
+```sh
+sudo usermod -aG sddm "$USER"
+newgrp sddm   # or log out/in
+```
+
+Then:
+
+```sh
+qmllint theme/Main.qml theme/components/*.qml   # after editing
+QML_XHR_ALLOW_FILE_READ=1 sddm-greeter-qt6 --test-mode --theme /usr/share/sddm/themes/pixie
+```
+
+## License
+
+MIT, see `LICENSE`. Original work by xCaptaiN09; caelestia-shell fidelity rebuild,
+calendar/news cards, and portability work in this repo are additions on top of
+that base.

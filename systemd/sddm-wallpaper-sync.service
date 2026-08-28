@@ -1,0 +1,6 @@
+[Unit]
+Description=Copy caelestia wallpaper/colors/avatar into the SDDM pixie theme
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/sync-sddm-wallpaper.sh
